@@ -1,0 +1,104 @@
+---
+# ConfigMap with custom HTML page
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-html-devops
+  namespace: haproxy-controller-devops
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>HAProxy Test</title>
+    </head>
+    <body>
+        <h1>SUCCESS - HAProxy Ingress Controller Works!</h1>
+        <p>You successfully routed traffic through HAProxy to Nginx!</p>
+        <h2>Traffic Flow</h2>
+        <p>Browser to HAProxy NodePort 32456</p>
+        <p>HAProxy reads Ingress Rule for app.local</p>
+        <p>Routes to nginx-service on port 8080</p>
+        <p>Nginx pod responds on port 80</p>
+    </body>
+    </html>
+
+---
+# Nginx Deployment with 2 replicas
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-app-devops
+  namespace: haproxy-controller-devops
+  labels:
+    app: nginx-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-app
+  template:
+    metadata:
+      labels:
+        app: nginx-app
+    spec:
+      containers:
+      - name: nginx-container
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: nginx-html-devops
+
+---
+# Service to expose Nginx
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: haproxy-controller-devops
+  labels:
+    app: nginx-app
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-app
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 80
+    protocol: TCP
+
+---
+# Ingress rule to route through HAProxy
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: haproxy-controller-devops
+  annotations:
+    kubernetes.io/ingress.class: "haproxy"
+spec:
+  rules:
+  - host: app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-service
+            port:
+              number: 8080

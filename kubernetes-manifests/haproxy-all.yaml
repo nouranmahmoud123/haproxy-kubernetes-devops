@@ -1,0 +1,185 @@
+# ============================================
+# Step 1: Create Namespace
+# ============================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: haproxy-controller-devops
+
+---
+
+# ============================================
+# Step 2: Create ServiceAccount
+# ============================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: haproxy-service-account-devops
+  namespace: haproxy-controller-devops
+
+---
+
+# ============================================
+# Step 3: Create ClusterRole
+# ============================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: haproxy-cluster-role-devops
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "endpoints", "nodes", "pods", "services", "namespaces", "events", "serviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "patch", "update"]
+
+---
+
+# ============================================
+# Step 4: Create ClusterRoleBinding
+# ============================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: haproxy-cluster-role-binding-devops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: haproxy-cluster-role-devops
+subjects:
+- kind: ServiceAccount
+  name: haproxy-service-account-devops
+  namespace: haproxy-controller-devops
+
+---
+
+# ============================================
+# Step 5: Create Backend Deployment
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment-devops
+  namespace: haproxy-controller-devops
+  labels:
+    run: ingress-default-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: ingress-default-backend
+  template:
+    metadata:
+      labels:
+        run: ingress-default-backend
+    spec:
+      containers:
+      - name: backend-container-devops
+        image: gcr.io/google_containers/defaultbackend:1.0
+        ports:
+        - containerPort: 8080
+
+---
+
+# ============================================
+# Step 6: Create Backend Service
+# ============================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-backend-devops
+  namespace: haproxy-controller-devops
+  labels:
+    run: ingress-default-backend
+spec:
+  selector:
+    run: ingress-default-backend
+  ports:
+  - name: port-backend
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+
+---
+
+# ============================================
+# Step 7: Create Frontend Deployment (HAProxy)
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-ingress-devops
+  namespace: haproxy-controller-devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: haproxy-ingress
+  template:
+    metadata:
+      labels:
+        run: haproxy-ingress
+    spec:
+      serviceAccountName: haproxy-service-account-devops
+      containers:
+      - name: ingress-container-devops
+        image: haproxytech/kubernetes-ingress
+        args:
+        - --default-backend-service=haproxy-controller-devops/service-backend-devops
+        resources:
+          requests:
+            cpu: 500m
+            memory: 50Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 1024
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        - name: stat
+          containerPort: 1024
+        env:
+        - name: TZ
+          value: Etc/UTC
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+
+---
+
+# ============================================
+# Step 8: Create Frontend Service (NodePort)
+# ============================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-service-devops
+  namespace: haproxy-controller-devops
+  labels:
+    run: haproxy-ingress
+spec:
+  type: NodePort
+  selector:
+    run: haproxy-ingress
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 32456
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 443
+    nodePort: 32567
+  - name: stat
+    port: 1024
+    protocol: TCP
+    targetPort: 1024
+    nodePort: 32678

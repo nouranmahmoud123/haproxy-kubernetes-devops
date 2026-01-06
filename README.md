@@ -1,31 +1,28 @@
 # Kubernetes HAProxy DevOps Project
-
-## نظرة عامة
-مشروع Kubernetes متكامل يتضمن:
+**PROJECT:**
 - HAProxy/Nginx Ingress Controller
 - Multiple Deployments (Backend, Nginx, API Viewer)
 - RBAC Configuration
 - Kubernetes API Viewer Dashboard
 
-## المتطلبات
+##Prerequisite 
 - Minikube
 - Docker
 - kubectl
 - Python 3.11+ (للـ development)
 
-## البدء السريع
 
-### 1. تشغيل Minikube
+### 1. Minikube
 ```bash
 minikube start --driver=docker --cpus=2 --memory=2048
 ```
 
-### 2. تفعيل Ingress Addon
+### 2.  Ingress Addon
 ```bash
 minikube addons enable ingress
 ```
 
-### 3. تطبيق Kubernetes Manifests
+### 3.  Kubernetes Manifests
 ```bash
 kubectl apply -f kubernetes-manifests/
 ```
@@ -41,11 +38,11 @@ docker build -t k8s-api-viewer:latest -f docker/Dockerfile app/
 kubectl apply -f kubernetes-manifests/09-api-viewer.yaml
 ```
 
-### 6. الدخول على التطبيق
+### 6.app
 ```bash
 MINIKUBE_IP=$(minikube ip)
 echo "API Viewer: http://$MINIKUBE_IP:32456/"
 echo "Nginx App: http://$MINIKUBE_IP/"
 ```
 
-## الـ Architecture
+## Architecture
